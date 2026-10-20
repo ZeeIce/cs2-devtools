@@ -1,0 +1,40 @@
+param([string]$GamePath = '',
+    [string]$OutputDirectory = (Join-Path $PSScriptRoot 'artifacts'),
+    [switch]$CommunityRelease)
+$ErrorActionPreference = 'Stop'
+if (!$GamePath) { $GamePath = & (Join-Path $PSScriptRoot 'find-game.ps1') }
+$managed = Join-Path $GamePath 'Cities2_Data\Managed'
+if (!(Test-Path -LiteralPath (Join-Path $managed 'Game.dll'))) { throw 'Game.dll not found' }
+$sdkLine = (& dotnet --list-sdks | Select-Object -Last 1)
+if ($sdkLine -notmatch '^([^ ]+) \[(.+)\]$') { throw 'A .NET SDK is required' }
+$compiler = Join-Path (Join-Path $Matches[2] $Matches[1]) 'Roslyn\bincore\csc.dll'
+$out = [IO.Path]::GetFullPath($OutputDirectory)
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+# Compile against the game's own framework, matching the official template's net48 target.
+$references = @('mscorlib','System','System.Core','System.Runtime','netstandard','Game',
+    'Colossal.Core','Colossal.Collections','Colossal.Logging','Colossal.Localization','Colossal.IO','Colossal.IO.AssetDatabase',
+    'Colossal.UI','Colossal.UI.Binding','Colossal.Mathematics','UnityEngine.CoreModule',
+    'Unity.Entities','Unity.Collections','Unity.Mathematics','Unity.InputSystem','Newtonsoft.Json')
+$debugOption = if ($CommunityRelease) { '/debug-' } else { '/debug:portable' }
+$response = @('/nologo','/target:library','/langversion:9.0','/nostdlib+','/optimize+', $debugOption,
+    ('/out:"' + (Join-Path $out 'PresidenteDevTools.dll') + '"'))
+foreach ($reference in $references) {
+    $path = Join-Path $managed ($reference + '.dll')
+    if (!(Test-Path -LiteralPath $path)) { throw "Missing reference: $path" }
+    $response += '/reference:"' + $path + '"'
+}
+Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'src') -Filter '*.cs' | ForEach-Object { $response += '"' + $_.FullName + '"' }
+$rsp = Join-Path $out 'compile.rsp'
+[IO.File]::WriteAllLines($rsp, $response)
+& dotnet $compiler ('@' + $rsp)
+if ($LASTEXITCODE -ne 0) { throw 'Compilation failed' }
+$manifest = [ordered]@{
+    modVersion = '0.1.0'
+    builtUtc = [DateTime]::UtcNow.ToString('O')
+    gameAssemblySha256 = (Get-FileHash -LiteralPath (Join-Path $managed 'Game.dll')).Hash
+    dllSha256 = (Get-FileHash -LiteralPath (Join-Path $out 'PresidenteDevTools.dll')).Hash
+    compilation = 'Managed IMod + UI module; runtime reflection over Presidente (HomelandSecurity); no Harmony, no changes to Presidente files'
+}
+$manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $out 'build-manifest.json') -Encoding utf8
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'ui\PresidenteDevTools.mjs') -Destination (Join-Path $out 'PresidenteDevTools.mjs') -Force
+Write-Output "Built: $(Join-Path $out 'PresidenteDevTools.dll')"

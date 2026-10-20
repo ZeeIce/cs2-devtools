@@ -1,0 +1,9 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net9.0</TargetFramework><OutputType>Exe</OutputType><AssemblyName>PresidenteDevTools.Tests</AssemblyName><Nullable>disable</Nullable><GamePath>C:\Games\Cities - Skylines II</GamePath></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\fake\HomelandSecurity.csproj" />
+    <Reference Include="PresidenteDevTools"><HintPath>..\..\artifacts\PresidenteDevTools.dll</HintPath></Reference>
+    <Reference Include="Newtonsoft.Json"><HintPath>$(GamePath)\Cities2_Data\Managed\Newtonsoft.Json.dll</HintPath></Reference>
+    <Reference Include="Unity.Entities"><HintPath>$(GamePath)\Cities2_Data\Managed\Unity.Entities.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

@@ -5,6 +5,7 @@ namespace HomelandSecurity.Immigration
 {
     public struct Point { public float X; public int Y; }
     public enum Mode { Off, Gentle, Full }
+    [System.Flags] public enum Traits { None = 0, Loud = 1, Rich = 2, Old = 4 }
 
     public sealed class StandingSystem
     {
@@ -17,6 +18,8 @@ namespace HomelandSecurity.Immigration
         private readonly Dictionary<string, bool> m_On = new Dictionary<string, bool> { ["tariff"] = true, ["deposit"] = false };
         private Mode m_Mode = Mode.Gentle;
         private string m_Name = "Fort Johnson";
+        private Traits m_Traits = Traits.Loud;
+        private double m_Budget = 1234.5;
         private Inner m_Inner = new Inner();
         public bool m_Moved;
 

@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using HomelandSecurity.Immigration;
 using Newtonsoft.Json.Linq;
-using PresidenteDevTools;
+using CS2DevTools;
 
 int pass = 0, fail = 0;
 void Check(string name, bool ok, string detail = "") { if (ok) pass++; else { fail++; Console.WriteLine("FAIL: " + name + " " + detail); } }
@@ -10,9 +10,9 @@ string V(Engine e, string path) => Engine.Short(e.Resolve(path).Last().Value);
 
 var standing = new StandingSystem();
 var e = new Engine();
-e.UseForTests(typeof(StandingSystem).Assembly, new object[] { standing });
+e.UseForTests(new[] { typeof(StandingSystem).Assembly }, new object[] { standing });
 
-var roots = e.Roots("");
+var rootsObj = e.Roots("", null, true, 0, 500); var roots = (JArray)rootsObj["roots"];
 Check("roots include system", roots.Any(r => (string)r["path"] == "StandingSystem"));
 Check("roots include static type", roots.Any(r => (string)r["path"] == "@BoomLaws"));
 
@@ -81,10 +81,24 @@ var tw = ms.First(m => (string)m["name"] == "Twice");
 Check("static method", (string)e.Invoke("StandingSystem", (int)tw["id"], new JArray("21"))["returned"] == "42");
 
 // search
-var hits = e.Search("Isolation", 2, 50);
+var hits = e.Search("Isolation", "name", null, null, 2, 50);
 Check("search finds nested field", hits.Any(h => (string)h["path"] == "StandingSystem.m_Inner.Isolation"));
-var hits2 = e.Search("TariffPct", 2, 50);
+var hits2 = e.Search("TariffPct", "name", null, null, 2, 50);
 Check("search finds static field", hits2.Any(h => (string)h["path"] == "@BoomLaws.s_TariffPct"));
 
+// full type-name system paths, flags enums, value search, dotted static roots
+e.Set("HomelandSecurity.Immigration.StandingSystem.m_PublicApproval", "55", out _);
+Check("full-name system path", V(e, "StandingSystem.m_PublicApproval") == "55");
+e.Set("StandingSystem.m_Traits", "Loud|Old", out _);
+Check("flags enum A|B", V(e, "StandingSystem.m_Traits") == "Loud, Old", V(e, "StandingSystem.m_Traits"));
+var vh = e.Search("1234.5", "value", null, null, 2, 50);
+Check("value search number", vh.Any(h => (string)h["path"] == "StandingSystem.m_Budget"), vh.ToString());
+var vs = e.Search("Yerba", "value", null, null, 2, 50);
+Check("value search text", vs.Any(h => (string)h["path"] == "StandingSystem.m_Name"));
+var scoped = e.Search("30", "value", "StandingSystem.m_Inner", null, 2, 50);
+Check("scoped value search", scoped.Any(h => (string)h["path"] == "StandingSystem.m_Inner.Isolation"), scoped.ToString());
+e.Set("@HomelandSecurity.Immigration.BoomLaws.s_TariffPct", "12", out _);
+Check("dotted static root", V(e, "@BoomLaws.s_TariffPct") == "12");
+Check("roots report assemblies", ((JArray)rootsObj["assemblies"]).Count == 1);
 Console.WriteLine($"{pass} passed, {fail} failed");
 return fail == 0 ? 0 : 1;

@@ -1,17 +1,17 @@
 /*!
  * Cities: Skylines II UI Module
  *
- * Id: PresidenteDevTools
+ * Id: CS2DevTools
  * Author: ZeeIce
- * Version: 0.1.0
- * Dependencies: HomelandSecurity
+ * Version: 0.2.0
+ * Dependencies:
  */
 // Hand-written (no bundler): uses the game's globals exactly as bundled mods do.
 const React = window.React;
 const api = window["cs2/api"];
 const h = React.createElement;
 const { useState, useEffect, useCallback } = React;
-const G = "PresidenteDevTools";
+const G = "CS2DevTools";
 const responseBinding = api.bindValue(G, "response", "{}");
 const statusBinding = api.bindValue(G, "status", "{}");
 
@@ -36,7 +36,7 @@ function call(op, args) {
 }
 
 // ---------- tiny shared store for open state / explorer path ----------
-const store = { open: false, tab: "quick", path: "", listeners: new Set() };
+const store = { open: false, tab: "explorer", path: "", listeners: new Set() };
 function setStore(p) { Object.assign(store, p); store.listeners.forEach(l => l()); }
 function useStore() {
   const [, force] = useState(0);
@@ -129,39 +129,57 @@ function Laws() {
 }
 
 // ---------- Explorer tab ----------
+const go = (p) => setStore({ tab: "explorer", path: p });
+function EntityLink({ c }) {
+  return c.entity ? h("div", { style: { cursor: "pointer", color: C.accent, marginLeft: "6rem" }, onClick: () => go(c.entity), title: "Open entity" }, "→ " + (c.entityLabel || c.entity)) : null;
+}
 function Explorer() {
   const st = useStore();
-  const [pathInput, setPathInput] = useState(st.path), [data, setData] = useState(null), [roots, setRoots] = useState(null), [rootFilter, setRootFilter] = useState("");
+  const [pathInput, setPathInput] = useState(st.path), [data, setData] = useState(null), [roots, setRoots] = useState(null);
+  const [rootFilter, setRootFilter] = useState(""), [asm, setAsm] = useState(""), [statics, setStatics] = useState(false), [rootOffset, setRootOffset] = useState(0);
   const [edits, setEdits] = useState({}), [offset, setOffset] = useState(0), [props, setProps] = useState(false), [methods, setMethods] = useState(null), [mFilter, setMFilter] = useState(""), [margs, setMargs] = useState({}), [result, setResult] = useState(null);
   const a = useAsync();
-  const go = (p, off) => { setStore({ path: p }); setPathInput(p); setOffset(off || 0); setMethods(null); setResult(null); };
+  const nav = (p, off) => { setStore({ path: p }); setPathInput(p); setOffset(off || 0); setMethods(null); setResult(null); };
+  const loadRoots = (o) => a.run(async () => setRoots(await call("roots", { filter: rootFilter, assembly: asm || null, statics, offset: o || 0, limit: 150 })));
+  useEffect(() => { setPathInput(st.path); }, [st.path]);
   useEffect(() => {
-    if (!st.path) { a.run(async () => setRoots(await call("roots", { filter: rootFilter }))); return; }
+    if (!st.path) { loadRoots(rootOffset); return; }
     a.run(async () => setData(await call("inspect", { path: st.path, offset, limit: 150, properties: props })));
-  }, [st.path, offset, props]);
+  }, [st.path, offset, props, statics, rootOffset]);
   const reload = () => a.run(async () => setData(await call("inspect", { path: st.path, offset, limit: 150, properties: props })));
   const parent = (p) => { const i = Math.max(p.lastIndexOf("."), p.lastIndexOf("[")); return i > 0 ? p.substring(0, i) : ""; };
   const crumbs = () => { const out = []; let p = st.path; while (p) { out.unshift(p); p = parent(p); } return out; };
-  const nav = h("div", { style: { display: "flex", alignItems: "center", marginBottom: "8rem" } },
-    h(Btn, { onClick: () => go("") }, "Roots"), h(Btn, { onClick: () => go(parent(st.path)) }, "Up"),
-    h(Input, { value: pathInput, onChange: setPathInput, onEnter: go, width: "470rem", placeholder: "System.m_Field[0].x   or   @StaticType.field" }),
-    h(Btn, { onClick: () => go(pathInput) }, "Go"), h(Btn, { on: props, onClick: () => setProps(!props), title: "Evaluate properties (runs getters)" }, "Props"));
-  if (!st.path) return h("div", null, nav, h(Err, { error: a.error }),
-    h("div", { style: { display: "flex", marginBottom: "6rem" } }, h(Input, { value: rootFilter, onChange: setRootFilter, onEnter: f => a.run(async () => setRoots(await call("roots", { filter: f }))), width: "300rem", placeholder: "filter systems / static types, Enter" })),
-    roots && roots.map(r => h("div", { key: r.path, style: Object.assign({ cursor: "pointer" }, S.row), onClick: () => go(r.path) },
-      h("div", { style: { width: "60rem", color: r.kind === "system" ? C.accent : C.warn } }, r.kind), h("div", { style: Object.assign({ width: "330rem" }, S.mono) }, r.path),
-      h("div", { style: { color: C.dim } }, r.fields + " fields"))));
-  return h("div", null, nav,
-    h("div", { style: { color: C.dim, marginBottom: "6rem" } }, crumbs().map((c, i) => h("span", { key: c, style: { cursor: "pointer", color: i === crumbs().length - 1 ? C.text : C.dim }, onClick: () => go(c) }, (i ? " › " : "") + c.substring(parent(c).length).replace(/^\./, "")))),
+  const selected = () => a.run(async () => { const s = await call("selected"); nav(s.path); });
+  const bar = h("div", { style: { display: "flex", alignItems: "center", marginBottom: "8rem" } },
+    h(Btn, { onClick: () => nav("") }, "Roots"), h(Btn, { onClick: () => nav(parent(st.path)) }, "Up"),
+    h(Input, { value: pathInput, onChange: setPathInput, onEnter: nav, width: "390rem", placeholder: "System.m_field[0]   @Type.static   #1234:1.Building" }),
+    h(Btn, { onClick: () => nav(pathInput) }, "Go"), h(Btn, { onClick: selected, title: "Open whatever is selected in the game" }, "Inspect selected"),
+    h(Btn, { on: props, onClick: () => setProps(!props), title: "Evaluate properties (runs getters)" }, "Props"));
+  if (!st.path) return h("div", null, bar, h(Err, { error: a.error }),
+    h("div", { style: { display: "flex", alignItems: "center", marginBottom: "6rem" } },
+      h(Input, { value: rootFilter, onChange: setRootFilter, onEnter: () => { setRootOffset(0); loadRoots(0); }, width: "220rem", placeholder: "filter type name, Enter" }),
+      h(Input, { value: asm, onChange: setAsm, onEnter: () => { setRootOffset(0); loadRoots(0); }, width: "160rem", placeholder: "assembly (blank = all)" }),
+      h(Btn, { on: statics, onClick: () => setStatics(!statics), title: "Also list types with static fields" }, "Statics"),
+      h(Btn, { onClick: () => { setRootOffset(0); loadRoots(0); } }, "Search")),
+    roots && h("div", { style: { display: "flex", flexWrap: "wrap", marginBottom: "6rem" } }, roots.assemblies.map(n => h(Btn, { key: n, on: asm === n, style: { marginBottom: "3rem", fontSize: "11rem" }, onClick: () => { const v = asm === n ? "" : n; setAsm(v); setRootOffset(0); a.run(async () => setRoots(await call("roots", { filter: rootFilter, assembly: v || null, statics, offset: 0, limit: 150 }))); } }, n))),
+    roots && h("div", { style: { color: C.dim, marginBottom: "4rem", display: "flex", alignItems: "center" } }, roots.total + " roots",
+      rootOffset > 0 && h(Btn, { style: { marginLeft: "8rem" }, onClick: () => setRootOffset(Math.max(0, rootOffset - 150)) }, "‹ Prev"),
+      rootOffset + 150 < roots.total && h(Btn, { style: { marginLeft: "8rem" }, onClick: () => setRootOffset(rootOffset + 150) }, "Next ›")),
+    roots && roots.roots.map(r => h("div", { key: r.path, style: Object.assign({ cursor: "pointer" }, S.row), onClick: () => nav(r.path) },
+      h("div", { style: { width: "56rem", color: r.kind === "system" ? C.accent : C.warn } }, r.kind), h("div", { style: Object.assign({ width: "420rem" }, S.mono) }, r.path),
+      h("div", { style: { width: "160rem", color: C.dim } }, r.assembly), h("div", { style: { color: C.dim } }, r.fields + " fields"))));
+  return h("div", null, bar,
+    h("div", { style: { color: C.dim, marginBottom: "6rem" } }, crumbs().map((c, i) => h("span", { key: c, style: { cursor: "pointer", color: i === crumbs().length - 1 ? C.text : C.dim }, onClick: () => nav(c) }, (i ? " › " : "") + (i ? c.substring(parent(c).length).replace(/^\./, "") : c)))),
     h(Err, { error: a.error }),
     data && h("div", null,
       h("div", { style: { display: "flex", alignItems: "center", marginBottom: "6rem" } },
         h("div", { style: Object.assign({ color: C.warn, marginRight: "10rem" }, S.mono) }, data.type),
+        data.entityLabel && h("div", { style: { color: C.text, marginRight: "10rem" } }, data.entityLabel),
         h("div", { style: { color: C.dim, marginRight: "10rem" } }, data.total + " entries"),
         offset > 0 && h(Btn, { onClick: () => setOffset(Math.max(0, offset - 150)) }, "‹ Prev"),
         offset + 150 < data.total && h(Btn, { onClick: () => setOffset(offset + 150) }, "Next ›"),
         h(Btn, { onClick: reload }, "Refresh"),
-        h(Btn, { onClick: () => a.run(async () => setMethods(await call("methods", { path: st.path, filter: mFilter }))) }, "Methods")),
+        !st.path.startsWith("#") || st.path.indexOf(".") > 0 ? h(Btn, { onClick: () => a.run(async () => setMethods(await call("methods", { path: st.path, filter: mFilter }))) }, "Methods") : null),
       methods && h("div", { style: S.card }, h("div", { style: S.h }, "Methods of " + methods.type),
         h("div", { style: { display: "flex", marginBottom: "6rem" } }, h(Input, { value: mFilter, onChange: setMFilter, onEnter: f => a.run(async () => setMethods(await call("methods", { path: st.path, filter: f }))), width: "260rem", placeholder: "filter, Enter" })),
         result && h("div", { style: Object.assign({ color: C.good, marginBottom: "6rem" }, S.mono) }, result),
@@ -172,28 +190,58 @@ function Explorer() {
             const given = margs[m.id] || []; let k = 0; const args = m.params.map(p => p.out ? "" : (given[k++] || ""));
             const r = await call("invoke", { path: st.path, id: m.id, args }); setResult(r.method + " → " + r.returned + (Object.keys(r.outs).length ? "  " + JSON.stringify(r.outs) : "")); await reload(); }) }, "Call")))),
       data.children.map(c => h("div", { key: c.path, style: S.row },
-        h("div", { style: Object.assign({ width: "250rem", cursor: c.expandable ? "pointer" : "default", color: c.expandable ? C.accent : C.text }, S.mono), onClick: () => c.expandable && go(c.path) }, (c.static ? "◆ " : "") + c.name),
-        h("div", { style: Object.assign({ width: "170rem", color: C.dim }, S.mono) }, c.type),
-        h("div", { style: Object.assign({ width: "190rem" }, S.mono) }, c.value),
-        c.editable && h(Input, { value: edits[c.path], width: "110rem", placeholder: c.options ? c.options.slice(0, 3).join("|") : "new value",
+        h("div", { style: Object.assign({ width: "240rem", cursor: c.expandable ? "pointer" : "default", color: c.expandable ? C.accent : C.text }, S.mono), onClick: () => c.expandable && nav(c.path) }, (c.static ? "◆ " : "") + c.name),
+        h("div", { style: Object.assign({ width: "160rem", color: c.kind === "buffer" ? C.warn : C.dim }, S.mono) }, c.kind === "component" || c.kind === "buffer" || c.kind === "tag" ? c.kind : c.type),
+        h("div", { style: Object.assign({ width: "180rem" }, S.mono) }, c.value),
+        h(EntityLink, { c }),
+        c.editable && h(Input, { value: edits[c.path], width: "110rem", placeholder: c.options ? (c.flags ? "A|B" : c.options.slice(0, 3).join("|")) : "new value",
           onChange: v => setEdits(Object.assign({}, edits, { [c.path]: v })),
           onEnter: v => a.run(async () => { await call("set", { path: c.path, value: v }); await reload(); }) }),
         c.editable && h(Btn, { onClick: () => a.run(async () => { await call("set", { path: c.path, value: edits[c.path] }); await reload(); }) }, "Set"),
-        c.editable && h(Btn, { onClick: () => a.run(async () => { await call("pin", edits[c.path] != null && edits[c.path] !== "" ? { path: c.path, value: edits[c.path] } : { path: c.path }); await reload(); }), title: "Hold this value every frame" }, "Pin"),
+        c.editable && h(Btn, { onClick: () => a.run(async () => { await call("pin", edits[c.path] != null && edits[c.path] !== "" ? { path: c.path, value: edits[c.path] } : { path: c.path }); await reload(); }), title: "Hold this value every frame (saved per city unless it is on an entity)" }, "Pin"),
         c.kind === "bool" && c.editable && h(Btn, { onClick: () => a.run(async () => { await call("set", { path: c.path, value: c.value === "true" ? "false" : "true" }); await reload(); }) }, "Toggle")))));
+}
+
+// ---------- Entities tab ----------
+function Entities() {
+  const [all, setAll] = useState("Building"), [none, setNone] = useState(""), [filter, setFilter] = useState(""), [data, setData] = useState(null), [offset, setOffset] = useState(0);
+  const a = useAsync();
+  const split = (s) => s.split(",").map(x => x.trim()).filter(Boolean);
+  const run = (o) => a.run(async () => { setOffset(o || 0); setData(await call("entities", { all: split(all), none: split(none), filter, offset: o || 0, limit: 150 })); });
+  return h("div", null,
+    h("div", { style: { color: C.dim, marginBottom: "6rem" } }, "Find live entities by component (short or full type names, comma separated). Examples: Building, ResidentialProperty · Citizen · Car · Edge, Road · CompanyData."),
+    h("div", { style: { display: "flex", alignItems: "center", marginBottom: "8rem" } },
+      h(Input, { value: all, onChange: setAll, onEnter: () => run(0), width: "230rem", placeholder: "with components" }),
+      h(Input, { value: none, onChange: setNone, onEnter: () => run(0), width: "160rem", placeholder: "without (optional)" }),
+      h(Input, { value: filter, onChange: setFilter, onEnter: () => run(0), width: "160rem", placeholder: "prefab name contains" }),
+      h(Btn, { onClick: () => run(0) }, "Find"),
+      h(Btn, { onClick: () => a.run(async () => { const s = await call("selected"); go(s.path); }) }, "Inspect selected")),
+    h(Err, { error: a.error }),
+    data && h("div", { style: { color: C.dim, marginBottom: "4rem", display: "flex", alignItems: "center" } }, data.total + " entities",
+      offset > 0 && h(Btn, { style: { marginLeft: "8rem" }, onClick: () => run(Math.max(0, offset - 150)) }, "‹ Prev"),
+      offset + 150 < data.total && h(Btn, { style: { marginLeft: "8rem" }, onClick: () => run(offset + 150) }, "Next ›")),
+    data && data.entities.map(e => h("div", { key: e.path, style: Object.assign({ cursor: "pointer" }, S.row), onClick: () => go(e.path) },
+      h("div", { style: Object.assign({ width: "120rem", color: C.accent }, S.mono) }, e.path), h("div", null, e.label))));
 }
 
 // ---------- Search tab ----------
 function Search() {
-  const [q, setQ] = useState(""), [hits, setHits] = useState(null);
+  const [q, setQ] = useState(""), [mode, setMode] = useState("name"), [scope, setScope] = useState(""), [asm, setAsm] = useState(""), [hits, setHits] = useState(null);
   const a = useAsync();
-  const run = (v) => a.run(async () => setHits(await call("search", { query: v == null ? q : v, depth: 2, limit: 300 })));
+  const run = () => a.run(async () => setHits(await call("search", { query: q, mode, scope: scope || null, assembly: asm || null, depth: 2, limit: 300 })));
+  const open = (c) => { const i = Math.max(c.path.lastIndexOf("."), c.path.lastIndexOf("[")); go(c.expandable ? c.path : c.path.substring(0, i)); };
   return h("div", null,
-    h("div", { style: { display: "flex", marginBottom: "8rem" } }, h(Input, { value: q, onChange: setQ, onEnter: run, width: "320rem", placeholder: "field name, e.g. Approval, Isolation, Population" }), h(Btn, { onClick: () => run() }, "Search")),
+    h("div", { style: { display: "flex", alignItems: "center", marginBottom: "8rem" } },
+      h(Btn, { on: mode === "name", onClick: () => setMode("name") }, "By name"), h(Btn, { on: mode === "value", onClick: () => setMode("value") }, "By value"),
+      h(Input, { value: q, onChange: setQ, onEnter: run, width: "220rem", placeholder: mode === "value" ? "97, 0.5, Tariff…" : "Approval, Isolation…" }),
+      h(Input, { value: scope, onChange: setScope, onEnter: run, width: "170rem", placeholder: "scope: systems | statics | path" }),
+      h(Input, { value: asm, onChange: setAsm, onEnter: run, width: "140rem", placeholder: "assembly (optional)" }),
+      h(Btn, { onClick: run }, "Search")),
+    h("div", { style: { color: C.dim, marginBottom: "6rem" } }, "Value search matches numbers within a tiny tolerance and text or enum names containing the query. Scope a path (an entity like #1234:1, or a system) to search inside it; leave blank for every system."),
     h(Err, { error: a.error }),
-    hits && h("div", { style: { color: C.dim, marginBottom: "4rem" } }, hits.length + " fields (systems and nested Presidente objects, two levels deep; static fields of every type)"),
-    hits && hits.map(c => h("div", { key: c.path, style: Object.assign({ cursor: "pointer" }, S.row), onClick: () => { const i = Math.max(c.path.lastIndexOf("."), c.path.lastIndexOf("[")); setStore({ tab: "explorer", path: c.expandable ? c.path : c.path.substring(0, i) }); } },
-      h("div", { style: Object.assign({ width: "470rem" }, S.mono) }, c.path), h("div", { style: Object.assign({ width: "150rem", color: C.dim }, S.mono) }, c.type), h("div", { style: S.mono }, c.value))));
+    hits && h("div", { style: { color: C.dim, marginBottom: "4rem" } }, hits.length + " matches"),
+    hits && hits.map(c => h("div", { key: c.path, style: Object.assign({ cursor: "pointer" }, S.row), onClick: () => open(c) },
+      h("div", { style: Object.assign({ width: "470rem" }, S.mono) }, c.path), h("div", { style: Object.assign({ width: "140rem", color: C.dim }, S.mono) }, c.type), h("div", { style: S.mono }, c.value))));
 }
 
 // ---------- Pins & history tab ----------
@@ -205,10 +253,12 @@ function Pins() {
   const load = () => a.run(async () => setHist(await call("history")));
   useEffect(() => { load(); }, []);
   return h("div", null, h(Err, { error: a.error }),
-    h("div", { style: S.card }, h("div", { style: S.h }, "Pinned values (re-applied every other frame)"),
+    h("div", { style: S.card }, h("div", { style: S.h }, "Pinned values" + (st.city ? " — " + st.city : "")),
+      h("div", { style: { color: C.dim, marginBottom: "6rem" } }, "Re-applied every other frame. Saved per city and restored on load, except pins on entities, which last for this session only."),
       (st.pins || []).length === 0 ? h("div", { style: { color: C.dim } }, "Nothing pinned.") :
-        (st.pins || []).map(p => h("div", { key: p.path, style: S.row }, h("div", { style: Object.assign({ width: "520rem" }, S.mono) }, p.path), h("div", { style: Object.assign({ width: "120rem" }, S.mono) }, p.value),
-          p.failures ? h("div", { style: { color: C.bad, width: "90rem" } }, p.failures + " fails") : null,
+        (st.pins || []).map(p => h("div", { key: p.path, style: S.row }, h("div", { style: Object.assign({ width: "480rem", cursor: "pointer" }, S.mono), onClick: () => { const i = Math.max(p.path.lastIndexOf("."), p.path.lastIndexOf("[")); go(p.path.substring(0, i)); } }, p.path),
+          h("div", { style: Object.assign({ width: "110rem" }, S.mono) }, p.value), h("div", { style: { width: "80rem", color: p.persistent ? C.good : C.warn } }, p.persistent ? "saved" : "session"),
+          p.failures ? h("div", { style: { color: C.bad, width: "70rem" } }, p.failures + " fails") : null,
           h(Btn, { onClick: () => a.run(async () => { await call("unpin", { path: p.path }); }) }, "Unpin"))),
       (st.pins || []).length > 0 && h(Btn, { style: { marginTop: "6rem" }, onClick: () => a.run(async () => { await call("unpinAll"); }) }, "Unpin all")),
     h("div", { style: S.card }, h("div", { style: Object.assign({ display: "flex", alignItems: "center" }, S.h) }, "History (this session)", h("div", { style: { marginLeft: "12rem" } }),
@@ -218,28 +268,31 @@ function Pins() {
 }
 
 // ---------- window + toolbar button ----------
-const TABS = [["quick", "Quick"], ["laws", "Laws"], ["explorer", "Explorer"], ["search", "Search"], ["pins", "Pins & history"]];
 function Window() {
   const st = useStore();
   const resp = api.useValue(responseBinding);
+  const status = api.useValue(statusBinding);
   useEffect(() => { onResponse(resp); }, [resp]);
   if (!st.open) return null;
-  const Body = { quick: Quick, laws: Laws, explorer: Explorer, search: Search, pins: Pins }[st.tab];
+  let s = {}; try { s = JSON.parse(status); } catch (e) { }
+  const tabs = [["explorer", "Explorer"], ["entities", "Entities"], ["search", "Search"], ["pins", "Pins & history"]];
+  if (s.presidente) tabs.push(["quick", "Presidente"], ["laws", "Laws"]);
+  const Body = { quick: Quick, laws: Laws, explorer: Explorer, entities: Entities, search: Search, pins: Pins }[st.tab] || Explorer;
   return h("div", { style: S.win },
-    h("div", { style: S.head }, h("div", { style: { fontSize: "16rem", fontWeight: "bold", flex: 1 } }, "Presidente Dev Tools"),
+    h("div", { style: S.head }, h("div", { style: { fontSize: "16rem", fontWeight: "bold", flex: 1 } }, "Dev Tools"),
       h("div", { style: { color: C.warn, marginRight: "12rem" } }, "Edits live game state. Save a backup first."), h(Btn, { onClick: () => setStore({ open: false }) }, "Close")),
-    h("div", { style: S.tabs }, TABS.map(([k, label]) => h(Btn, { key: k, on: st.tab === k, onClick: () => setStore({ tab: k }) }, label))),
+    h("div", { style: S.tabs }, tabs.map(([k, label]) => h(Btn, { key: k, on: st.tab === k, onClick: () => setStore({ tab: k }) }, label))),
     h("div", { style: S.body }, h(Body, { key: st.tab })));
 }
 function ToggleButton() {
   const st = useStore();
-  return h("div", { style: Object.assign({}, S.btn, st.open ? S.btnOn : null, { pointerEvents: "auto", margin: "6rem", fontWeight: "bold" }), onClick: () => setStore({ open: !st.open }), title: "Presidente Dev Tools" }, "PDT");
+  return h("div", { style: Object.assign({}, S.btn, st.open ? S.btnOn : null, { pointerEvents: "auto", margin: "6rem", fontWeight: "bold" }), onClick: () => setStore({ open: !st.open }), title: "Dev Tools" }, "DEV");
 }
 
 const register = (moduleRegistry) => {
   moduleRegistry.append("GameTopLeft", ToggleButton);
   moduleRegistry.append("Game", Window);
-  console.log("PresidenteDevTools UI registered.");
+  console.log("CS2DevTools UI registered.");
 };
 export default register;
 export const hasCSS = false;

@@ -7,19 +7,20 @@ using Game.Simulation;
 using Newtonsoft.Json.Linq;
 using Unity.Entities;
 
-namespace PresidenteDevTools
+namespace CS2DevTools
 {
-    // Hand-picked controls over Presidente's politics, built on its own methods where they exist.
+    // Presidente plugin: hand-picked controls over its politics, built on its own methods where they exist. Shown only when Presidente is loaded.
     internal sealed class Curated
     {
-        internal const string ApprovalPath = "@StandingSystem.<Approval>k__BackingField";
-        internal const string PublicApprovalPath = "StandingSystem.m_PublicApproval";
+        internal const string ApprovalPath = "@HomelandSecurity.Immigration.StandingSystem.<Approval>k__BackingField";
+        internal const string PublicApprovalPath = "HomelandSecurity.Immigration.StandingSystem.m_PublicApproval";
         const string Key = "devtools";
         const int Permanent = 1000000; // events dated in the future never fade (Presidente's Fade(age <= 0) == 1)
         readonly Engine engine;
         internal Curated(Engine e) { engine = e; }
 
-        object Standing => engine.System("StandingSystem") ?? throw new InvalidOperationException("standing_system_missing");
+        internal bool Available => engine.AssemblyNamed("HomelandSecurity") != null && engine.System("HomelandSecurity.Immigration.StandingSystem") != null;
+        object Standing => engine.System("HomelandSecurity.Immigration.StandingSystem") ?? throw new InvalidOperationException("presidente_not_loaded");
         static object Call(object target, string name, params object[] args)
         {
             var m = target.GetType().GetMethods(Engine.Inst).FirstOrDefault(x => x.Name == name && x.GetParameters().Length == args.Length) ?? throw new MissingMethodException(target.GetType().Name, name);
@@ -28,7 +29,7 @@ namespace PresidenteDevTools
 
         string[] ActorNames()
         {
-            var t = engine.TypeNamed("StandingTable");
+            var t = engine.TypeNamed("HomelandSecurity.Immigration.StandingTable");
             return t?.GetField("Names", Engine.Stat)?.GetValue(null) as string[] ?? Enumerable.Range(0, 29).Select(i => "Actor " + i).ToArray();
         }
 
@@ -106,7 +107,7 @@ namespace PresidenteDevTools
 
         IEnumerable LawRows()
         {
-            var t = engine.TypeNamed("StandingTable") ?? throw new InvalidOperationException("standing_table_missing");
+            var t = engine.TypeNamed("HomelandSecurity.Immigration.StandingTable") ?? throw new InvalidOperationException("standing_table_missing");
             foreach (var f in t.GetFields(Engine.Stat))
             {
                 if (!(f.GetValue(null) is IEnumerable e) || f.FieldType == typeof(string[])) continue;

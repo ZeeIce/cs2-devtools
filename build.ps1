@@ -17,7 +17,7 @@ $references = @('mscorlib','System','System.Core','System.Runtime','netstandard'
     'Unity.Entities','Unity.Collections','Unity.Mathematics','Unity.InputSystem','Newtonsoft.Json')
 $debugOption = if ($CommunityRelease) { '/debug-' } else { '/debug:portable' }
 $response = @('/nologo','/target:library','/langversion:9.0','/nostdlib+','/optimize+', $debugOption,
-    ('/out:"' + (Join-Path $out 'PresidenteDevTools.dll') + '"'))
+    ('/out:"' + (Join-Path $out 'CS2DevTools.dll') + '"'))
 foreach ($reference in $references) {
     $path = Join-Path $managed ($reference + '.dll')
     if (!(Test-Path -LiteralPath $path)) { throw "Missing reference: $path" }
@@ -29,12 +29,12 @@ $rsp = Join-Path $out 'compile.rsp'
 & dotnet $compiler ('@' + $rsp)
 if ($LASTEXITCODE -ne 0) { throw 'Compilation failed' }
 $manifest = [ordered]@{
-    modVersion = '0.1.0'
+    modVersion = '0.2.0'
     builtUtc = [DateTime]::UtcNow.ToString('O')
     gameAssemblySha256 = (Get-FileHash -LiteralPath (Join-Path $managed 'Game.dll')).Hash
-    dllSha256 = (Get-FileHash -LiteralPath (Join-Path $out 'PresidenteDevTools.dll')).Hash
-    compilation = 'Managed IMod + UI module; runtime reflection over Presidente (HomelandSecurity); no Harmony, no changes to Presidente files'
+    dllSha256 = (Get-FileHash -LiteralPath (Join-Path $out 'CS2DevTools.dll')).Hash
+    compilation = 'Managed IMod + UI module; runtime reflection over the game, every mod and live ECS entities; no Harmony, no changes to Presidente files'
 }
 $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $out 'build-manifest.json') -Encoding utf8
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'ui\PresidenteDevTools.mjs') -Destination (Join-Path $out 'PresidenteDevTools.mjs') -Force
-Write-Output "Built: $(Join-Path $out 'PresidenteDevTools.dll')"
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'ui\CS2DevTools.mjs') -Destination (Join-Path $out 'CS2DevTools.mjs') -Force
+Write-Output "Built: $(Join-Path $out 'CS2DevTools.dll')"

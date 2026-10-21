@@ -14,6 +14,7 @@ namespace CS2DevTools
         {
             // UIUpdate runs every frame, paused or not, so pins hold while the city is paused.
             updateSystem.UpdateAt<DevToolsUISystem>(SystemUpdatePhase.UIUpdate);
+            updateSystem.UpdateAt<InspectSection>(SystemUpdatePhase.UIUpdate);
             Log.Info("Dev Tools loaded");
         }
 

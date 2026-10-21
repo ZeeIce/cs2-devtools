@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+
+- **Inspect in Dev Tools** button in every selected object's info window (no need to open the panel first).
+
 ## 0.2.0 — CS2 Dev Tools
 
 Renamed from *Presidente Dev Tools* and generalised to the whole game.

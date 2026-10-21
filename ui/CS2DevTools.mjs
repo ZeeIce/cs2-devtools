@@ -3,7 +3,7 @@
  *
  * Id: CS2DevTools
  * Author: ZeeIce
- * Version: 0.2.0
+ * Version: 0.2.1
  * Dependencies:
  */
 // Hand-written (no bundler): uses the game's globals exactly as bundled mods do.
@@ -289,9 +289,20 @@ function ToggleButton() {
   return h("div", { style: Object.assign({}, S.btn, st.open ? S.btnOn : null, { pointerEvents: "auto", margin: "6rem", fontWeight: "bold" }), onClick: () => setStore({ open: !st.open }), title: "Dev Tools" }, "DEV");
 }
 
+// "Inspect in Dev Tools" section in the game's selected-object info panel (C#: InspectSection).
+function InspectSectionView(props) {
+  return h("div", { style: { padding: "6rem 10rem", display: "flex", alignItems: "center", pointerEvents: "auto" } },
+    h("div", { style: { flex: 1, color: "rgba(255,255,255,0.7)", fontSize: "12rem" } }, "Dev Tools · " + (props.path || "")),
+    h("div", { style: Object.assign({}, S.btn, { fontSize: "12rem" }), onClick: () => setStore({ open: true, tab: "explorer", path: props.path }) }, "Inspect in Dev Tools"));
+}
+
 const register = (moduleRegistry) => {
   moduleRegistry.append("GameTopLeft", ToggleButton);
   moduleRegistry.append("Game", Window);
+  try {
+    moduleRegistry.extend("game-ui/game/components/selected-info-panel/selected-info-sections/selected-info-sections.tsx", "selectedInfoSectionComponents",
+      (components) => { components["CS2DevTools.InspectSection"] = (p) => h(InspectSectionView, p); return components; });
+  } catch (e) { console.error("CS2DevTools: info panel section registration failed; use Inspect selected in the panel instead.", e); }
   console.log("CS2DevTools UI registered.");
 };
 export default register;

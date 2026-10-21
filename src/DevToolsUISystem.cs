@@ -111,6 +111,8 @@ namespace CS2DevTools
             }.ToString(Formatting.None));
         }
 
+        internal string DescribeEntity(Unity.Entities.Entity e) { try { EnsureEngine(); return engine.Describe(e); } catch { return ""; } }
+
         bool SafeAvailable() { try { return presidente.Available; } catch { return false; } }
 
         // Single entry point for the panel and for other mods (Api). Returns {seq, ok, result|error}.

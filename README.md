@@ -1,4 +1,4 @@
-﻿# CS2 Dev Tools
+# CS2 Dev Tools
 
 **An in-game inspector and editor for Cities: Skylines II.** Look inside the running game — the base game, every mod you have installed, and every building, citizen, vehicle and road in your city — and change values while you play.
 
@@ -12,7 +12,7 @@ Think of it as a "developer console with a UI": you click through the game's int
 
 | You want to… | How |
 |---|---|
-| See everything about the building you just clicked | Click it in the game, then **Inspect selected** |
+| See everything about the building you just clicked | Click it in the game, then **Inspect in Dev Tools** in its info window |
 | Find every building of some kind | **Entities** tab → `Building, ResidentialProperty` |
 | Find where the game stores a number you see on screen (say, 97) | **Search** tab → **By value** → `97` |
 | Find a setting by name | **Search** tab → **By name** → e.g. `Isolation` |
@@ -48,7 +48,7 @@ Browse the game like a file tree.
 
 - **Roots** lists every *system* (the game's and each mod's running logic). Click a mod name to show only that mod, or turn on **Statics** to also see global settings.
 - Click any blue name to open it. Use the breadcrumb at the top, or **Up**, to go back.
-- **Inspect selected** opens whatever you last clicked in the game world.
+- **Inspect selected** opens whatever you last clicked in the game world. Every object's info window also gets a small **Dev Tools** row with an **Inspect in Dev Tools** button that does the same.
 - Values that point to another object (shown as **→ name**) can be clicked to jump there.
 - Editable values have a box, **Set** and **Pin**. On/off values also have **Toggle**.
   - Numbers: `12`, `0.5`
